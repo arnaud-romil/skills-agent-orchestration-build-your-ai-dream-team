@@ -1,0 +1,36 @@
+{
+  "projects": [
+    {
+      "name": "Community Resource Hub",
+      "owner": "Maya Chen",
+      "status": "On track",
+      "recentActivity": "Content review completed · 2 days ago",
+      "priority": "High",
+      "summary": "Bring trusted community guides and local support links into one easy-to-navigate hub."
+    },
+    {
+      "name": "Open Data Toolkit",
+      "owner": "Jordan Rivera",
+      "status": "Active",
+      "recentActivity": "Published the first sample dataset · 1 day ago",
+      "priority": "Medium",
+      "summary": "Help contributors explore, validate, and share small public-interest datasets."
+    },
+    {
+      "name": "Accessibility Refresh",
+      "owner": "Avery Patel",
+      "status": "At risk",
+      "recentActivity": "Keyboard audit surfaced a few follow-up items · 3 days ago",
+      "priority": "High",
+      "summary": "Improve keyboard navigation, contrast, and assistive-technology support across shared pages."
+    },
+    {
+      "name": "Volunteer Onboarding",
+      "owner": "Sam Okafor",
+      "status": "Planning",
+      "recentActivity": "Drafted a first-week checklist · 4 days ago",
+      "priority": "Low",
+      "summary": "Make it easier for new volunteers to find a welcoming first task and get oriented."
+    }
+  ]
+}

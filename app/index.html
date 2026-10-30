@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A quick, contributor-friendly view of project ownership, status, activity, and priority.">
+    <title>Project Pulse</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="dashboard">
+      <header class="dashboard-header">
+        <div>
+          <p class="dashboard-eyebrow">Team overview</p>
+          <h1 class="dashboard-title">Project Pulse</h1>
+          <p class="dashboard-description">A clear view of what’s moving, who’s leading, and where the team’s attention is needed.</p>
+        </div>
+        <p class="dashboard-summary" id="dashboard-summary" aria-live="polite">Loading projects…</p>
+      </header>
+
+      <section class="dashboard-controls" aria-label="Project filters">
+        <label for="project-search">Search projects</label>
+        <input id="project-search" type="search" placeholder="Name, owner, activity…" autocomplete="off" disabled>
+        <label for="status-filter">Status</label>
+        <select id="status-filter" disabled>
+          <option value="">All statuses</option>
+        </select>
+      </section>
+
+      <section id="dashboard-message" class="dashboard-message" role="status" aria-live="polite">
+        <h2>Loading your project pulse</h2>
+        <p>Fetching the latest project overview…</p>
+      </section>
+      <section id="project-list" class="dashboard-projects" aria-label="Projects" aria-busy="true"></section>
+    </main>
+
+    <script>
+      "use strict";
+
+      const projectList = document.querySelector("#project-list");
+      const dashboardMessage = document.querySelector("#dashboard-message");
+      const dashboardSummary = document.querySelector("#dashboard-summary");
+      const projectSearch = document.querySelector("#project-search");
+      const statusFilter = document.querySelector("#status-filter");
+      let projects = [];
+
+      function createElement(tagName, className, text) {
+        const element = document.createElement(tagName);
+        if (className) {
+          element.className = className;
+        }
+        if (text !== undefined) {
+          element.textContent = text;
+        }
+        return element;
+      }
+
+      function showMessage(title, detail, isError = false, retry = false) {
+        dashboardMessage.hidden = false;
+        dashboardMessage.className = isError ? "dashboard-message" : "dashboard-empty";
+        dashboardMessage.setAttribute("role", isError ? "alert" : "status");
+        dashboardMessage.replaceChildren(
+          createElement("h2", "", title),
+          createElement("p", "", detail)
+        );
+
+        if (retry) {
+          const retryButton = createElement("button", "", "Try again");
+          retryButton.type = "button";
+          retryButton.addEventListener("click", loadProjects);
+          dashboardMessage.append(retryButton);
+        }
+      }
+
+      function hideMessage() {
+        dashboardMessage.hidden = true;
+        dashboardMessage.replaceChildren();
+      }
+
+      function classToken(value, allowedTokens) {
+        const token = value.toLowerCase().trim().replace(/\s+/g, "-");
+        return allowedTokens.has(token) ? token : "";
+      }
+
+      function createProjectCard(project) {
+        const card = createElement("article", "project-card");
+        const header = createElement("header", "project-card__header");
+        const title = createElement("h2", "project-card__title", project.name);
+        const statusToken = classToken(project.status, new Set([
+          "active", "on-track", "at-risk", "blocked", "planning", "completed"
+        ]));
+        const status = createElement(
+          "span",
+          `status-badge${statusToken ? ` status-badge--${statusToken}` : ""}`,
+          project.status
+        );
+        header.append(title, status);
+
+        const owner = createElement("p", "project-card__owner");
+        owner.append(
+          document.createTextNode("Owner "),
+          createElement("strong", "", project.owner)
+        );
+
+        const summary = createElement("p", "project-card__summary", project.summary);
+        const details = createElement("div", "project-card__details");
+        const activityDetail = createElement("div", "project-card__detail");
+        activityDetail.append(
+          createElement("span", "project-card__label", "Recent activity"),
+          createElement("p", "project-card__activity", project.recentActivity)
+        );
+
+        const priorityDetail = createElement("div", "project-card__detail");
+        priorityDetail.append(createElement("span", "project-card__label", "Priority"));
+        const priorityToken = classToken(project.priority, new Set([
+          "high", "urgent", "critical", "medium", "low"
+        ]));
+        priorityDetail.append(createElement(
+          "span",
+          `priority${priorityToken ? ` priority--${priorityToken}` : ""}`,
+          project.priority
+        ));
+        details.append(activityDetail, priorityDetail);
+        card.append(header, owner, summary, details);
+        return card;
+      }
+
+      function updateStatusOptions() {
+        const statuses = [...new Set(projects.map((project) => project.status))]
+          .sort((left, right) => left.localeCompare(right));
+        statusFilter.replaceChildren(new Option("All statuses", ""));
+        for (const status of statuses) {
+          statusFilter.append(new Option(status, status));
+        }
+      }
+
+      function renderProjects() {
+        const query = projectSearch.value.trim().toLocaleLowerCase();
+        const selectedStatus = statusFilter.value.toLocaleLowerCase();
+        const visibleProjects = projects.filter((project) => {
+          const searchableText = [
+            project.name,
+            project.owner,
+            project.status,
+            project.recentActivity,
+            project.priority,
+            project.summary
+          ].join(" ").toLocaleLowerCase();
+          return searchableText.includes(query)
+            && (!selectedStatus || project.status.toLocaleLowerCase() === selectedStatus);
+        });
+
+        projectList.replaceChildren(...visibleProjects.map(createProjectCard));
+        dashboardSummary.textContent = `${visibleProjects.length} of ${projects.length} projects shown`;
+
+        if (visibleProjects.length === 0) {
+          showMessage(
+            projects.length === 0 ? "No projects yet" : "No matching projects",
+            projects.length === 0
+              ? "There are no projects to display yet."
+              : "Try another search or choose a different status."
+          );
+          return;
+        }
+        hideMessage();
+      }
+
+      function validateProjectData(data) {
+        if (!data || !Array.isArray(data.projects)) {
+          throw new Error('Project data must contain a top-level "projects" array.');
+        }
+
+        const requiredFields = ["name", "owner", "status", "recentActivity", "priority"];
+        for (const [index, project] of data.projects.entries()) {
+          if (!project || typeof project !== "object" || Array.isArray(project)) {
+            throw new Error(`Project ${index + 1} must be an object.`);
+          }
+          for (const field of requiredFields) {
+            if (typeof project[field] !== "string" || project[field].trim() === "") {
+              throw new Error(`Project ${index + 1} is missing a non-empty "${field}" value.`);
+            }
+          }
+          if (project.summary !== undefined && typeof project.summary !== "string") {
+            throw new Error(`Project ${index + 1} has an invalid "summary" value.`);
+          }
+          if (!project.summary) {
+            project.summary = "A quick overview of this team's current work.";
+          }
+        }
+        return data.projects;
+      }
+
+      async function loadProjects() {
+        projectList.replaceChildren();
+        projectList.setAttribute("aria-busy", "true");
+        projectSearch.disabled = true;
+        statusFilter.disabled = true;
+        dashboardSummary.textContent = "Loading projects…";
+        showMessage("Loading your project pulse", "Fetching the latest project overview…");
+
+        try {
+          const response = await fetch("project-data.json", { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error(`The project data request failed (HTTP ${response.status}).`);
+          }
+          const data = await response.json();
+          projects = validateProjectData(data);
+          updateStatusOptions();
+          projectSearch.disabled = false;
+          statusFilter.disabled = false;
+          renderProjects();
+        } catch (error) {
+          projects = [];
+          dashboardSummary.textContent = "Projects unavailable";
+          showMessage(
+            "Couldn’t load project data",
+            `${error.message} Make sure the dashboard is served over HTTP and project-data.json is valid JSON.`,
+            true,
+            true
+          );
+        } finally {
+          projectList.setAttribute("aria-busy", "false");
+        }
+      }
+
+      projectSearch.addEventListener("input", renderProjects);
+      statusFilter.addEventListener("change", renderProjects);
+      loadProjects();
+    </script>
+  </body>
+</html>
